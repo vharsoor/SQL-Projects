@@ -1,7 +1,7 @@
 # SQL-Projects
 SQL Projects done during my Master's
 
-**#1-Create Movie Recommendation Database**
+### **#1-Create Movie Recommendation Database**
 1. The description of the tables is as follows. You should also check the requirement in the given graphic description:
 users: userid (int, primary key), name (text)
 movies: movieid (integer, primary key), title (text)
@@ -13,7 +13,8 @@ hasagenre: movieid (int, foreign key), genreid (int, foreign key)
 
 2. The requirement only tells you the name and data type of each attribute in each table. You need to figure out the primary keys, foreign keys, constraints or other necessary settings by yourself. The key information in the requirement is not complete and attributes can be primary keys and foreign keys at the same time.
 
-**#2-SQL Query for Movie Recommendation**
+### **#2-SQL Query for Movie Recommendation**
+
 You should assume the data has been loaded into the database. Then you need to implement the following SQL queries. For each query, we provide an example of the schema of the saved query result.
 
 1. Write a SQL query to return the total number of movies for each genre. Your query result should be saved in a table called “query1” which has two attributes: name, moviecount.
