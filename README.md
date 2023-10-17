@@ -2,14 +2,14 @@
 SQL Projects done during my Master's
 
 ### **#1-Create Movie Recommendation Database**
-1. The description of the tables is as follows. You should also check the requirement in the given graphic description:
-users: userid (int, primary key), name (text)
-movies: movieid (integer, primary key), title (text)
-taginfo: tagid (int, primary key), content (text)
-genres: genreid (integer, primary key), name (text)
-ratings: userid (int, foreign key), movieid (int, foreign key), rating (numeric), timestamp (bigint, seconds since midnight Coordinated Universal Time (UTC) of January 1, 1970)
-tags: userid (int, foreign key), movieid (int, foreign key), tagid (int, foreign key), timestamp (bigint, seconds since midnight Coordinated Universal Time (UTC) of January 1, 1970).
-hasagenre: movieid (int, foreign key), genreid (int, foreign key)
+1. The description of the tables is as follows. You should also check the requirement in the given graphic description:  
+users: userid (int, primary key), name (text)  
+movies: movieid (integer, primary key), title (text)  
+taginfo: tagid (int, primary key), content (text)  
+genres: genreid (integer, primary key), name (text)  
+ratings: userid (int, foreign key), movieid (int, foreign key), rating (numeric), timestamp (bigint, seconds since midnight Coordinated Universal Time (UTC) of January 1, 1970)  
+tags: userid (int, foreign key), movieid (int, foreign key), tagid (int, foreign key), timestamp (bigint, seconds since midnight Coordinated Universal Time (UTC) of January 1, 1970).  
+hasagenre: movieid (int, foreign key), genreid (int, foreign key)  
 
 2. The requirement only tells you the name and data type of each attribute in each table. You need to figure out the primary keys, foreign keys, constraints or other necessary settings by yourself. The key information in the requirement is not complete and attributes can be primary keys and foreign keys at the same time.
 
