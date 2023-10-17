@@ -1,5 +1,5 @@
 # SQL-Projects
-SQL Projects done during my Master's
+SQL Projects done during my Master's (Sep 2023)
 
 ### **#1-Create Movie Recommendation Database**
 1. The description of the tables is as follows. You should also check the requirement in the given graphic description:  
