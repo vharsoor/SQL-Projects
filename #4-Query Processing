@@ -1,0 +1,99 @@
+#!/usr/bin/python2.7
+#
+# Assignment2 Interface
+# Vishrut Rajendra Kumar Harsoor
+
+import psycopg2
+import os
+import sys
+# Donot close the connection inside this file i.e. do not perform openconnection.close()
+def RangeQuery(ratingsTableName, ratingMinValue, ratingMaxValue, openconnection):
+ 
+    final_res = []
+    db_cursor = openconnection.cursor()
+
+    #Get the partition number from rangeratingsmetadata
+    partition_query = '''SELECT partitionnum FROM rangeratingsmetadata WHERE maxrating>={0} AND minrating<={1};'''.format(ratingMinValue, ratingMaxValue)
+    db_cursor.execute(partition_query)
+    partitions = db_cursor.fetchall()
+    #Save the partion number of range partions which have our desired tuples
+    partitions = [partition[0] for partition in partitions]
+
+    range_select_query = '''SELECT * FROM rangeratingspart{0} WHERE rating>={1} and rating<={2};'''
+
+    for partition in partitions:
+        db_cursor.execute(range_select_query.format(partition, ratingMinValue, ratingMaxValue))
+        rangesqlresult = db_cursor.fetchall()
+        #We will get list of desired tuples
+        for result in rangesqlresult:
+            result = list(result)
+            result.insert(0,'RangeRatingsPart{}'.format(partition))
+            final_res.append(result)
+
+    rro_count_query = '''SELECT partitionnum FROM roundrobinratingsmetadata;'''
+    #We will check in all ruond robin partitions
+    db_cursor.execute(rro_count_query)
+    rro_parts = db_cursor.fetchall()[0][0]
+
+    rro_select_query = '''SELECT * FROM roundrobinratingspart{0} WHERE rating>={1} and rating<={2};'''
+
+    for rro_part in range(rro_parts):
+        #Look for our desired tuples in each round robin partition
+        db_cursor.execute(rro_select_query.format(rro_part, ratingMinValue, ratingMaxValue))
+        rrsqlresult = db_cursor.fetchall()
+        for result in rrsqlresult:
+            result = list(result)
+            result.insert(0, 'RoundRobinRatingsPart{}'.format(rro_part))
+            final_res.append(result)
+
+    writeToFile('RangeQueryOut.txt', final_res)
+
+
+
+def PointQuery(ratingsTableName, ratingValue, openconnection):
+    final_res = []
+    db_cursor = openconnection.cursor()
+
+    #Min rating and max is rating is same as required ratingValue
+    partition_query = '''SELECT partitionnum FROM rangeratingsmetadata WHERE maxrating>={0} AND minrating<={0};'''.format(ratingValue)
+    db_cursor.execute(partition_query)
+    all_partitions = db_cursor.fetchall()
+    all_partitions = [partition[0] for partition in all_partitions]
+
+    range_select_query = '''SELECT * FROM rangeratingspart{0} WHERE rating={1};'''
+
+    #Maximum we will get 2 ranges partitions
+    for partition in all_partitions:
+        db_cursor.execute(range_select_query.format(partition, ratingValue))
+        rangesqlresult = db_cursor.fetchall()
+        for result in rangesqlresult:
+            result = list(result)
+            result.insert(0, 'RangeRatingsPart{}'.format(partition))
+            final_res.append(result)
+
+    rro_count_query = '''SELECT partitionnum FROM roundrobinratingsmetadata;'''
+
+    db_cursor.execute(rro_count_query)
+    rro_parts = db_cursor.fetchall()[0][0]
+    #For round robin, go through all the aprtitions to get the desired tuples
+
+    rro_select_query = '''SELECT * FROM roundrobinratingspart{0} WHERE rating={1};'''
+
+    for rro_part in range(rro_parts):
+        #Inside each round robin table get the desired rating tuple 
+        db_cursor.execute(rro_select_query.format(rro_part, ratingValue))
+        rrsqlresult = db_cursor.fetchall()
+        for result in rrsqlresult:
+            result = list(result)
+            result.insert(0, 'RoundRobinRatingsPart{}'.format(rro_part))
+            final_res.append(result)
+
+    writeToFile('PointQueryOut.txt', final_res)
+
+
+def writeToFile(filename, rows):
+    f = open(filename, 'w')
+    for line in rows:
+        f.write(','.join(str(s) for s in line))
+        f.write('\n')
+    f.close()
