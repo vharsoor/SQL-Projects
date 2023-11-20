@@ -1,0 +1,278 @@
+#!/usr/bin/python2.7
+#
+# Interface for the assignement
+#
+
+import psycopg2
+
+
+def getOpenConnection(user='postgres', password='1234', dbname='postgres'):
+    return psycopg2.connect("dbname='" + dbname + "' user='" + user + "' host='localhost' password='" + password + "'")
+
+
+def loadRatings(ratingstablename, ratingsfilepath, openconnection):
+    # Create a cursor object to execute SQL commands
+    conn = openconnection
+    cur = conn.cursor()
+
+    # Define the path to your 'ratings.dat' file
+    file_path = ratingsfilepath
+    #file_path = 'C:/Academics/DPS/ratings.dat'
+
+    # Check if the 'ratings' table exists, and if not, create it
+    cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = %s);", (ratingstablename,))
+    if not cur.fetchone()[0]:
+        # Table does not exist, create it
+        create_table_query = """
+            CREATE TABLE ratings (
+                UserID INT,
+                MovieID INT,
+                Rating NUMERIC CHECK (Rating IN (0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5)),
+                PRIMARY KEY (UserID, MovieID)
+            );
+        """
+        cur.execute(create_table_query)
+        conn.commit()
+
+    # Open the file and read its contents
+    with open(file_path, 'r') as file:
+        for line in file:
+            # Replace '::' with a single ':' to use it as a delimiter
+            line = line.replace('::', ':')
+            row = line.strip().split(':')
+            user_id, movie_id, rating, _ = row  # Underscore (_) is used to ignore the timestamp
+            # Convert data types as needed
+            userid = int(user_id)
+            movieid = int(movie_id)
+            rating = float(rating)
+
+            # Insert data into the PostgreSQL database
+            insert_query = "INSERT INTO {} (userid, movieid, rating) VALUES (%s, %s, %s)".format(ratingstablename)
+            data = (userid, movieid, rating)
+            cur.execute(insert_query, data)
+
+    # Commit the changes to the database
+    conn.commit()
+
+    # Close the cursor
+    cur.close()
+
+
+def rangePartition(ratingstablename, numberofpartitions, openconnection):
+    # Create a cursor object to execute SQL commands
+    conn = openconnection
+    cur = conn.cursor()
+
+    N=numberofpartitions
+    
+    # Calculate the range size based on the number of partitions (N)
+    min_rating_query = "SELECT MIN(rating) FROM {}".format(ratingstablename)
+    max_rating_query = "SELECT MAX(rating) FROM {}".format(ratingstablename)
+    
+    cur.execute(min_rating_query)
+    min_rating = cur.fetchone()[0]
+    
+    cur.execute(max_rating_query)
+    max_rating = cur.fetchone()[0]
+    
+    range_size = (max_rating - min_rating) / N
+    
+    # Create N range partitions
+    for i in range(N):
+        # Define the partition's name
+        partition_name = "range_part{}".format(i)
+        
+        # Calculate the lower and upper bounds for this partition
+        lower_bound = min_rating + i * range_size
+        upper_bound = min_rating + (i + 1) * range_size
+        
+        # Create a table for the partition
+        if i == 0:
+            create_partition_query = """
+                CREATE TABLE {} AS
+                SELECT * FROM {}
+                WHERE (rating >= {} AND rating <= {});
+            """.format(partition_name, ratingstablename, lower_bound, upper_bound)
+        else:
+            create_partition_query = """
+                CREATE TABLE {} AS
+                SELECT * FROM {}
+                WHERE rating > {} AND rating <= {};
+            """.format(partition_name, ratingstablename, lower_bound, upper_bound)
+
+        cur.execute(create_partition_query)
+    
+    # Commit the changes to the database
+    conn.commit()
+    
+    # Close the cursor
+    cur.close()
+
+
+def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
+    # Create a cursor object to execute SQL commands
+    conn = openconnection
+    cur = conn.cursor()
+
+    N=numberofpartitions
+
+    # Create N round-robin partitions
+    for i in range(N):
+        # Define the partition's name
+        partition_name = "rrobin_part{}".format(i)
+
+        # Create a table for the partition
+        create_partition_query = """
+            CREATE TABLE {} AS
+            SELECT * FROM {} OFFSET {} LIMIT {};
+        """.format(partition_name, ratingstablename, i, (N - 1))
+        cur.execute(create_partition_query)
+
+
+    # Commit the changes to the database
+    conn.commit()
+
+    # Close the cursor
+    cur.close()
+
+
+def roundrobininsert(ratingstablename, userid, itemid, rating, openconnection):
+    # Create a cursor object to execute SQL commands
+    conn = openconnection
+    cur = conn.cursor()
+
+    # Get the number of partitions (N) by counting existing round-robin partitions
+    count_partitions_query = """
+        SELECT COUNT(*) FROM information_schema.tables 
+        WHERE table_name LIKE 'rrobin_part%';
+    """
+    cur.execute(count_partitions_query)
+    N = cur.fetchone()[0]
+
+    # Calculate the partition number for the new tuple using round-robin strategy
+    partition_number = hash(str(userid + itemid)) % N
+
+    # Define the partition's name
+    partition_name = "rrobin_part{}".format(partition_number)
+
+    # Insert the new tuple into the selected partition
+    insert_query = """
+        INSERT INTO {} (userid, movieid, rating)
+        VALUES (%s, %s, %s);
+    """.format(partition_name)
+    data = (userid, itemid, rating)
+    cur.execute(insert_query, data)
+
+    # Commit the changes to the database
+    conn.commit()
+
+    # Close the cursor
+    cur.close()
+
+
+def rangeinsert(ratingstablename, userid, itemid, rating, openconnection):
+    import math
+    
+    # Create a cursor object to execute SQL commands
+    conn = openconnection
+    cur = conn.cursor()
+
+    # Get the number of partitions (N) by counting existing range partitions
+    count_partitions_query = """
+        SELECT COUNT(*) FROM information_schema.tables 
+        WHERE table_name LIKE 'range_part%';
+    """
+    cur.execute(count_partitions_query)
+    N = cur.fetchone()[0]
+
+    # Determine the partition number based on the Rating value
+    min_rating_query = "SELECT MIN(rating) FROM {}".format(ratingstablename)
+    max_rating_query = "SELECT MAX(rating) FROM {}".format(ratingstablename)
+
+    cur.execute(min_rating_query)
+    min_rating = cur.fetchone()[0]
+
+    cur.execute(max_rating_query)
+    max_rating = cur.fetchone()[0]
+
+    range_size = (max_rating - min_rating) / N
+
+    # Calculate the partition number
+    partition_number = int(math.ceil(int((rating - min_rating) / range_size))) - 1
+
+    # Define the partition's name
+    partition_name = "range_part{}".format(partition_number)
+
+    # Insert the new tuple into the selected partition
+    insert_query = """
+        INSERT INTO {} (userid, movieid, rating)
+        VALUES (%s, %s, %s);
+    """.format(partition_name)
+
+    data = (userid, itemid, rating)
+    cur.execute(insert_query, data)
+
+    # Commit the changes to the database
+    conn.commit()
+
+    # Close the cursor
+    cur.close()
+
+
+
+def createDB(dbname='dds_assignment'):
+    """
+    We create a DB by connecting to the default user and database of Postgres
+    The function first checks if an existing database exists for a given name, else creates it.
+    :return:None
+    """
+    # Connect to the default database
+    con = getOpenConnection(dbname='postgres')
+    con.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+    cur = con.cursor()
+
+    # Check if an existing database with the same name exists
+    cur.execute('SELECT COUNT(*) FROM pg_catalog.pg_database WHERE datname=\'%s\'' % (dbname,))
+    count = cur.fetchone()[0]
+    if count == 0:
+        cur.execute('CREATE DATABASE %s' % (dbname,))  # Create the database
+    else:
+        print 'A database named {0} already exists'.format(dbname)
+
+    # Clean up
+    cur.close()
+    con.close()
+
+def deletepartitionsandexit(openconnection):
+    cur = openconnection.cursor()
+    cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+    l = []
+    for row in cur:
+        l.append(row[0])
+    for tablename in l:
+        cur.execute("drop table if exists {0} CASCADE".format(tablename))
+
+    cur.close()
+
+def deleteTables(ratingstablename, openconnection):
+    try:
+        cursor = openconnection.cursor()
+        if ratingstablename.upper() == 'ALL':
+            cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+            tables = cursor.fetchall()
+            for table_name in tables:
+                cursor.execute('DROP TABLE %s CASCADE' % (table_name[0]))
+        else:
+            cursor.execute('DROP TABLE %s CASCADE' % (ratingstablename))
+        openconnection.commit()
+    except psycopg2.DatabaseError, e:
+        if openconnection:
+            openconnection.rollback()
+        print 'Error %s' % e
+    except IOError, e:
+        if openconnection:
+            openconnection.rollback()
+        print 'Error %s' % e
+    finally:
+        if cursor:
+            cursor.close()
