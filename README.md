@@ -46,14 +46,16 @@ UserID(int) – MovieID(int) – Rating(float)
 
 ### **#4-Query Processing**
 
-1.Implement a **Python function RangeQuery** that takes as input: (1) Ratings table stored in PostgreSQL, (2) RatingMinValue (3) RatingMaxValue (4) openconnection2. RangeQuery() then returns all tuples for which the rating value is larger than or equal to RatingMinValue and less than or equal to RatingMaxValue along with the Partition Name.
-Example:
-PartitionName, UserID, MovieID, Rating
-RangeRatingsPart0,1,377,0.5
-RoundRobinRatingsPart1,1,377,0.5
+1. Implement a **Python function RangeQuery** that takes as input: (1) Ratings table stored in PostgreSQL, (2) RatingMinValue (3) RatingMaxValue (4) openconnection2. RangeQuery() then returns all tuples for which the rating value is larger than or equal to RatingMinValue and less than or equal to RatingMaxValue along with the Partition Name.
+Example:<br/>
+PartitionName, UserID, MovieID, Rating<br/>
+RangeRatingsPart0,1,377,0.5<br/>
+RoundRobinRatingsPart1,1,377,0.5<br/>
+
+
 
 2. Implement a **Python function PointQuery** that takes as input: (1) Ratings table stored in PostgreSQL, (2) RatingValue. (3) openconnection. PointQuery() then returns all tuples for which the rating value is equal to RatingValue along with Partition Name.
-Example:
-PartitionName, UserID, MovieID, Rating
-RangeRatingsPart3,23,459,3.5
-RoundRobinRatingsPart4,31,221,0
+Example:<br/>
+PartitionName, UserID, MovieID, Rating<br/>
+RangeRatingsPart3,23,459,3.5<br/>
+RoundRobinRatingsPart4,31,221,0<br/>
